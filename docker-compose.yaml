@@ -1,0 +1,71 @@
+networks:
+  supplax:
+services:
+  php:
+    build:
+      context: .
+      dockerfile: ./docker/php/Dockerfile
+    container_name: supplax_php
+    restart: "no"
+    tty: true
+    working_dir: /var/www/html
+    volumes:
+      - './:/var/www/html'
+    #ports:
+      #- '5173:5173' # for VITE plugin
+    networks:
+      - supplax
+    depends_on:
+      - mysql
+  nginx:
+    image: nginx:latest
+    ports:
+      - '80:80'
+    container_name: supplax_nginx
+    restart: "no"
+    tty: true
+    volumes:
+      - './:/var/www/html'
+      - './docker/nginx/conf.d:/etc/nginx/conf.d'
+    networks:
+      - supplax
+    depends_on:
+      - php
+  mysql:
+    image: mysql:8.0
+    ports:
+      - '3306:3306'
+    container_name: supplax_mysql
+    restart: "no"
+    environment:
+      - MYSQL_ROOT_PASSWORD=root
+    volumes:
+      - './docker/volume/mysql:/var/lib/mysql/'
+      - './docker/volume/dumps:/var/dumps/'
+      - './docker/mysql/conf.d/custom.conf:/etc/mysql/custom.conf'
+      - './docker/mysql/conf.d/:/etc/mysql/conf.d/'
+    networks:
+      - supplax
+    user: mysql
+  phpmyadmin:
+    image: phpmyadmin/phpmyadmin
+    container_name: supplax_phpmyadmin
+    restart: "no"
+    ports:
+      - '9090:80'
+    networks:
+      - supplax
+    environment:
+      - PMA_HOST=mysql
+      - PMA_PORT=3306
+#  redis:
+#    image: redis:7.2-alpine
+#    container_name: supplax_redis
+#    volumes:
+#      - './docker/volume/redis-data:/data'
+#    ports:
+#      - '6379:6379'
+#    command: redis-server --save 60 1 --loglevel warning
+#    networks:
+#      - supplax
+#    restart: "no"
