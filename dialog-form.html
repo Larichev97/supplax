@@ -1,0 +1,311 @@
+{% block styles %}
+  <style>
+      .deal-review-row select {
+          color: #151617 !important;
+          background: #ddfddd;  !important;
+
+      }
+      .deal-review-row select option {
+          color: #151617 !important;
+          background: #ddfddd !important;
+      }
+      .lost-comment.empty-lost-comment:focus-visible {
+          border-color: red;
+      }
+      .status-dialog {
+          list-style: none;
+          display: inline-block;
+          position: absolute;
+          top: 50%;
+          left: 50%;
+          width: 500px;
+          height: 160px;
+          margin-left: -250px;
+          margin-top: -100px;
+          z-index: 2;
+          border-radius: 5px;
+          padding: 0 5px;
+          border: 3px solid #919ca7;
+          background-color: #fff;
+      }
+  </style>
+{% endblock %}
+{% set dealAtDate = 'now' | date('Y-m-d') %}
+{% set dealAtTime = '08:00' %}
+{% set timezoneName = 'now' | date('T', timeZone) %}
+{% set dealStatus = 2 %}
+{% set dealMaster = 0 %}
+{% set dealParam = '' %}
+{% set showDealParamDisabled = false %}
+{% if not deal %}
+  {% if dealCount > 0 %}
+    {% set dealParam = paramDefaultWithDeals %}
+  {% else %}
+    {% set dealParam = paramDefaultWithoutDeals %}
+  {% endif %}
+{% endif %}
+{% set amount = defaultAmount ?? '' %}
+{% set profit = defaultProfit ?? '' %}
+{%  set isLost = false %}
+{% set blockAmountProfit = false %}
+{% if deal %}
+  {% set dealStatus = deal.status %}
+  {% set dealMaster = deal.master ? deal.master.id : 0 %}
+  {% if deal.param %}
+    {% set dealParam = deal.param %}
+    {% if dealParam not in dealParams %}
+      {% set showDealParamDisabled = true %}
+      {% set dealParams = dealParams|merge([dealParam]) %}
+    {% endif %}
+  {% endif %}
+  {% if deal.dealAt %}
+    {% set dealAtDate = deal.dealAt|date('Y-m-d', timeZone) %}
+    {% set dealAtTime = deal.dealAt|date('H:i', timeZone) %}
+  {% endif %}
+  {% if deal.paidAt %}
+    {% set paidAtDate = deal.paidAt|date('Y-m-d', timeZone) %}
+    {% set paidAtTime = deal.paidAt|date('H:i', timeZone) %}
+  {% endif %}
+  {% if deal.amount is not null %}
+    {% set amount = deal.amount %}
+  {% endif %}
+  {% if deal.profit is not null %}
+    {% set profit = deal.profit %}
+  {% endif %}
+  {% if deal.status in dealLostStatuses %}
+    {% set isLost = true %}
+  {% endif %}
+  {% if not canChangeProfit and deal.status not in canChangeProfitStatuses %}
+    {% set blockAmountProfit = true %}
+  {% endif %}
+{% endif %}
+<form id="deal-form">
+  <div>
+    <input type="hidden" name="deal-id" value="{{ deal ? deal.id : 0 }}">
+    <input type="hidden" name="phone1" id="phone1" value="{{ ourPhone }}">
+    <input type="hidden" name="phone2" id="phone2" value="{{ clientPhone }}">
+    <input type="hidden" id="current-deal-status" value="{{ deal.status ?? dealStatus }}">
+    <div class="form-row">
+      <div class="form-group col mb-2">
+        <label for="deal-date">Deal date <small>({{ city }}, {{ timezoneName }})</small>*</label>
+        <input class="date-input form-control date mb-2 mr-sm-2" id="deal-date" type="text" name="deal-date"
+               value="{{ dealAtDate|date("d.m.Y") }}" required>
+      </div>
+      <div class="form-group col mb-2 ml-2">
+        <label for="deal-time">Deal time <small>({{ city }}, {{ timezoneName }})</small>*</label>
+        <input class="time-input form-control time" id="deal-time" name="deal-time" type="text"
+               value="{{ dealAtTime|date("H:i") }}" data-provide='timepicker' required>
+      </div>
+    </div>
+    <div class="form-row">
+      <div class="form-group col mb-2">
+        {# <label for="deal-amount">Amount ($)</label>#}
+        <input class="form-control" id="deal-amount" name="deal-amount" type="number" title="Amount ($)" placeholder="Amount ($)"
+               value="{{ amount }}" {{ blockAmountProfit ? 'disabled' : '' }}>
+      </div>
+      <div class="form-group col mb-2 ml-2">
+        {# <label for="deal-profit">Profit ($)</label> #}
+        <input class="form-control" id="deal-profit" name="deal-profit" type="number" title="Profit ($)" placeholder="Profit ($)"
+               value="{{ profit }}" {{ blockAmountProfit ? 'disabled' : '' }}>
+      </div>
+    </div>
+    <div class="form-row">
+      <div class="form-group col mb-2">
+        {# <label for="deal-status">Status</label> #}
+        <select class="form-control deal-status-select" id="deal-status" name="deal-status" {{ dealStatuses|length ? '' : 'disabled' }} title="Status">
+          {% for id, name in dealStatuses %}
+            <option value="{{ id }}" {{ id == dealStatus ? 'selected' : '' }} {{ id in disabledDealStatuses ? 'disabled' : ''}} data-type="{{ getDealType(id) }}">
+              {{ name }}
+            </option>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="form-group col mb-2 ml-2">
+        {# <label for="deal-master">Master</label> #}
+        <select class="form-control" id="deal-master" name="deal-master" {{ dealMasters|length ? '' : 'disabled' }} title="Master">
+          <option value="0">Without master</option>
+          {% for id, name in dealMasters %}
+            <option value="{{ id }}" {{ id == dealMaster ? 'selected' : '' }}>{{ name }}</option>
+          {% endfor %}
+        </select>
+      </div>
+    </div>
+    <div class="form-row">
+      <div class="form-group col mb-1">
+        <select class="form-control deal-param-select" id="deal-params" name="deal-params" {{ dealParams|length ? '' : 'disabled' }} title="Params">
+          <option value="">Without Params</option>
+          {% for name in dealParams %}
+            <option value="{{ name }}" {{ (name == dealParam and showDealParamDisabled) ? 'disabled' : '' }} {{ name == dealParam ? 'selected' : '' }}>
+              {{ name }}
+            </option>
+          {% endfor %}
+        </select>
+      </div>
+    </div>
+    <div class="form-row">
+      <div class="form-group col mb-2">
+        <input class="form-control lost-comment {{  deal and isLost ?: 'd-none' }}" id="lost-comment" name="lost-comment"
+               type="text" title="Lost comment"  placeholder="Input lost comment"
+               value="{{ deal and deal.lostComment ? deal.lostComment : '' }}">
+      </div>
+    </div>
+    <div class="form-group mb-2">
+      {# <label for="dialog-address">Deal address</label> #}
+      <input class="form-control" id="dialog-address" name="dialog-address" type="text"
+             placeholder="Enter deal address if different from lead (optional)" value="{{ deal ? deal.address : '' }}">
+    </div>
+    <div class="form-group mb-2">
+      {# <label for="dialog-description">Deal description *</label> #}
+      <textarea class="form-control" id="dialog-description" name="dialog-description"
+                placeholder="Enter description (required)"
+                rows="5" required>{{ deal ? deal.comment : '' }}</textarea>
+    </div>
+    <div class="form-group mb-2">
+      {# <label for="dialog-invoice">Invoice URL</label> #}
+      <input class="form-control" id="dialog-invoice" name="dialog-invoice" type="text" title="Invoice URL"
+             placeholder="Input URL to invoice" {% if not isInvoiceEdit %}disabled{% endif %}
+             value="{{ deal and deal.invoice ? deal.invoice : '' }}">
+    </div>
+    {% if canEditPaidDate and deal and deal.paidAt %}
+      <div class="form-row">
+        <div class="form-group col mb-2">
+          <label for="paid-date">Date paid <small>({{ city }}, {{ timezoneName }})</small>*</label>
+          <input class="date-input form-control date mr-sm-2" id="paid-date" type="text" name="paid-date"
+                 value="{{ paidAtDate|date("d.m.Y") }}">
+        </div>
+        <div class="form-group col ml-2">
+          <label for="paid-time">Time paid <small>({{ city }}, {{ timezoneName }})</small>*</label>
+          <input class="time-input form-control time" id="paid-time" name="paid-time" type="text"
+                 value="{{ paidAtTime|date("H:i") }}" data-provide='timepicker'>
+        </div>
+      </div>
+    {% endif %}
+    {% if deal %}
+      <div class="deal-review-data" {{ showReviewFields ?: 'hidden' }}>
+        Review
+        <div class="form-row deal-review-row">
+          <div class="form-group col mb-2">
+            {# <label for="deal-status">Status</label> #}
+            <select class="deal-review form-control" id="review-rating" name="review-rating" title="Review rating">
+              {% for i  in range(0, 10) %}
+                <option value="{{ i }}" {{ i == deal.dealRating ? 'selected' : '' }}>{{ i }}</option>
+              {% endfor %}
+            </select>
+          </div>
+          <div class="form-group col mb-2">
+            {# <label for="deal-status">Status</label> #}
+            <select class="deal-review form-control" id="review-status" name="review-status" {{ reviewStatuses|length ? '' : 'disabled' }}title="Review status">
+              {% for id, name in reviewStatuses %}
+                <option value="{{ id }}" {{ id == deal.reviewStatus ? 'selected' : '' }}>{{ name }}</option>
+              {% endfor %}
+            </select>
+          </div>
+        </div>
+      </div>
+    {% endif %}
+  </div>
+</form>
+<div class="status-dialog d-none">
+  <div class="modal-dialog">
+    <div class="modal-content">
+      <div class="modal-body">
+        Can you get feedback from a client?
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-primary" id="yes-btn">Yes</button>
+        <button class="btn btn-primary" id="no-btn">No</button>
+        <button class="btn btn-secondary" id="cancel-btn">Cancel</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+  $(document).ready(function () {
+    $('.date-input').datepicker({
+      weekStart: 1,
+      format: 'dd.mm.yyyy',
+      autoclose: true,
+    });
+    $('.time-input').timepicker({
+      timeFormat: 'HH:mm',
+      minuteStep: 5,
+      showMeridian: false,
+    });
+    let readyToFeedback = {{ constant('AppBundle\\Entity\\CRM\\DialogDeal::STATUS_FEEDBACK_RECEIVED') }};
+    let feedbackProcessed = {{ constant('AppBundle\\Entity\\CRM\\DialogDeal::STATUS_FEEDBACK_PROCESSED') }};
+    let paidStatus = {{ constant('AppBundle\\Entity\\CRM\\DialogDeal::STATUS_PAID') }};
+    let lostStatusesArray = {{ dealLostStatuses|json_encode|replace("'", "&#39;")|raw }};
+    let $lostCommentInput = jQuery('#lost-comment');
+    let currentDealStatus = parseInt(jQuery('#current-deal-status').val());
+    let $dealStatusSelect = jQuery('select#deal-status');
+    let canChangeProfitStatuses = {{ canChangeProfitStatuses|json_encode|replace("'", "&#39;")|raw }};
+    let $amountInput = jQuery('#deal-amount');
+    let $profitInput = jQuery('#deal-profit');
+    let canChangeProfit = {{ canChangeProfit ? 'true' : 'false'}};
+
+    let $statusDialog = jQuery(".status-dialog");
+    $dealStatusSelect.on('change', function (e) {
+      let el = jQuery(this).find(':selected');
+      let selected = parseInt(jQuery(el).val());
+      let type = jQuery(el).attr('data-type');
+      let correctionOption = jQuery(this).find('option[data-type="correction"]');
+      let notApprovedOption = jQuery(this).find('option[data-type="not_approved"]');
+      let lostOption = jQuery(this).find('option[data-type="lost"]');
+      let defaultOption = jQuery(this).find('option[data-type="default"]');
+
+      if (notApprovedOption.length > 0) {
+        if (type === 'correction') {
+          notApprovedOption.removeAttr('disabled');
+        } else if (type !== 'not_approved')   {
+          if (type !== 'lost') {
+            lostOption.attr('disabled', 'disabled');
+          } else {
+            defaultOption.attr('disabled', 'disabled');
+            correctionOption.attr('disabled', 'disabled');
+          }
+          notApprovedOption.attr('disabled', 'disabled');
+        }
+      }
+      if (selected === readyToFeedback || selected === feedbackProcessed) {
+        jQuery('.deal-review-data').removeAttr('hidden')
+      } else if (selected === paidStatus) {
+        $statusDialog.removeClass('d-none');
+        jQuery("button").on('click', function (e) {
+          e.preventDefault();
+          switch (e.target.id) {
+            case 'yes-btn':
+              $dealStatusSelect.val(readyToFeedback).trigger('change');
+              break;
+            case 'no-btn':
+              break;
+            case 'cancel-btn':
+              $dealStatusSelect.val(currentDealStatus).trigger('change');
+          }
+          $statusDialog.addClass('d-none');
+        })
+
+      } else {
+        let currentRating = parseInt(jQuery('#review-rating').find(':selected').val());
+        let currentReviewStatus = parseInt(jQuery('#review-status').find(':selected').val());
+        if (currentRating === 0 && currentReviewStatus === 0) {
+          jQuery('.deal-review-data').attr('hidden', true)
+        }
+      }
+      if ($.inArray(selected, lostStatusesArray) !== -1) {
+        $lostCommentInput.removeClass('d-none');
+      } else {
+        $lostCommentInput.addClass('d-none');
+      }
+      if (!canChangeProfit) {
+        if (jQuery.inArray(selected, canChangeProfitStatuses) !== -1) {
+          $amountInput.removeAttr('disabled')
+          $profitInput.removeAttr('disabled')
+        } else {
+          $amountInput.attr('disabled', 'disabled')
+          $profitInput.attr('disabled', 'disabled')
+        }
+      }
+    })
+  });
+</script>
