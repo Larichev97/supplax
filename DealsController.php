@@ -705,6 +705,21 @@ class DealsController extends TwilioBaseController
             }
         }
 
+        $upsale = $this->normalizeMoneyValue($request->get('deal-upsale', ''));
+        $asapCharge = $this->normalizeMoneyValue($request->get('deal-asap-charge', ''));
+
+        $validationError = $this->validateMoneyField($upsale, 0, 999999, 'Upsale cannot be negative or exceed limit', $request);
+        if ($validationError) {
+            return $validationError;
+        }
+
+        $validationError = $this->validateMoneyField($asapCharge, 0, 999999, 'ASAP charge cannot be negative or exceed limit', $request);
+        if ($validationError) {
+            return $validationError;
+        }
+
+        $this->resetFieldsIfInvalidDeal($deal, $upsale, $asapCharge);
+
         $isInvoiceEdit = $twUser['group'] === 'admins' || in_array('twilio_crm_deals_invoice', $twUser['pages'], true);
         $disabledDealStatuses = $this->containerAware->getDealService()->getDisabledDealStatuses($twUser, $deal);
         $invoice = trim($request->get('dialog-invoice', ''));
@@ -972,6 +987,38 @@ class DealsController extends TwilioBaseController
                     ->setRecipientPhone($clientPhone)
                     ->setBody($message);
                 $this->containerAware->saveEntity($sms);
+            }
+
+            // upsale
+            $oldUpsale = $deal->getUpsale();
+
+            if ($oldUpsale !== $upsale) {
+                $deal->setUpsale($upsale);
+
+                $this->processSmsErrorNotification(
+                    Sms::TYPE_UPSCALE,
+                    Sms::DIRECTION_NO,
+                    $sysUser,
+                    $ourPhone,
+                    $clientPhone,
+                    $this->buildFieldNotificationMessage($deal, $oldUpsale, $upsale, 'upsale')
+                );
+            }
+
+            // asapCharge
+            $oldAsapCharge = $deal->getAsapCharge();
+
+            if ($oldAsapCharge !== $asapCharge) {
+                $deal->setAsapCharge($asapCharge);
+
+                $this->processSmsErrorNotification(
+                    Sms::TYPE_ASAP_CHARGE,
+                    Sms::DIRECTION_NO,
+                    $sysUser,
+                    $ourPhone,
+                    $clientPhone,
+                    $this->buildFieldNotificationMessage($deal, $oldAsapCharge, $asapCharge, 'asapCharge')
+                );
             }
 
             // comment
@@ -1794,4 +1841,118 @@ class DealsController extends TwilioBaseController
         return $this->json($json);
     }
 
+    /**
+     * @param $value
+     *
+     * @return int|null
+     */
+    private function normalizeMoneyValue($value): ?int
+    {
+        if ($value === '' || $value === null) {
+            return null;
+        }
+
+        if (!is_numeric($value)) {
+            return null;
+        }
+
+        return (int)$value;
+    }
+
+    /**
+     * @param $value
+     * @param int $min
+     * @param int $max
+     * @param string $message
+     * @param Request $request
+     *
+     * @return Response|null
+     */
+    private function validateMoneyField($value, int $min, int $max, string $message, Request $request): ?Response
+    {
+        if ($value === null) {
+            return null;
+        }
+
+        if ($value < $min || $value > $max) {
+            return $this->getErrorRequest($request->isXmlHttpRequest(), $message);
+        }
+
+        return null;
+    }
+
+    /**
+     *  Бизнес условие
+     *
+     * @param $deal
+     * @param $upsale
+     * @param $asapCharge
+     *
+     * @return void
+     */
+    private function resetFieldsIfInvalidDeal($deal, &$upsale, &$asapCharge): void
+    {
+        if ($deal->getAmount() <= 0 || $deal->getProfit() <= 0) {
+            $upsale = null;
+            $asapCharge = null;
+        }
+    }
+
+    /**
+     *  Формирование текста сообщения для уведомления
+     *
+     * @param $deal
+     * @param $oldValue
+     * @param $newValue
+     * @param string $fieldName
+     *
+     * @return string
+     */
+    private function buildFieldNotificationMessage($deal, $oldValue, $newValue, string $fieldName): string
+    {
+        $dealId = $deal->getId();
+
+        if ($newValue === null) {
+            return 'Deal #' . $dealId . ' reset ' . $fieldName . ' from $' . $oldValue;
+        } else {
+            if ($oldValue === null) {
+                return 'Deal #' . $dealId . ' set ' . $fieldName . ' $' . $newValue;
+            } else {
+                return 'Deal #' . $dealId . ' change ' . $fieldName . ' from $' . $oldValue . ' to $' . $newValue;
+            }
+        }
+    }
+
+    /**
+     *  SMS уведомление об ошибке Клиенту
+     *
+     * @param $type
+     * @param $direction
+     * @param $author
+     * @param string $senderPhone
+     * @param string $recipientPhone
+     * @param string $message
+     *
+     * @return void
+     */
+    private function processSmsErrorNotification(
+        $type,
+        $direction,
+        $author,
+        string $senderPhone,
+        string $recipientPhone,
+        string $message
+    ): void
+    {
+        $sms = (new Sms())
+            ->setType($type)
+            ->setDirection($direction)
+            ->setSendAt(new DateTime())
+            ->setAuthor($author)
+            ->setSenderPhone($senderPhone)
+            ->setRecipientPhone($recipientPhone)
+            ->setBody($message);
+
+        $this->containerAware->saveEntity($sms);
+    }
 }

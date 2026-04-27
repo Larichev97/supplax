@@ -46,6 +46,8 @@
 {% endif %}
 {% set amount = defaultAmount ?? '' %}
 {% set profit = defaultProfit ?? '' %}
+{% set upsale = '' %}
+{% set asapCharge = '' %}
 {%  set isLost = false %}
 {% set blockAmountProfit = false %}
 {% if deal %}
@@ -71,6 +73,12 @@
   {% endif %}
   {% if deal.profit is not null %}
     {% set profit = deal.profit %}
+  {% endif %}
+  {% if deal.upsale is not null %}
+    {% set upsale = deal.upsale %}
+  {% endif %}
+  {% if deal.asapCharge is not null %}
+    {% set asapCharge = deal.asapCharge %}
   {% endif %}
   {% if deal.status in dealLostStatuses %}
     {% set isLost = true %}
@@ -107,6 +115,18 @@
         {# <label for="deal-profit">Profit ($)</label> #}
         <input class="form-control" id="deal-profit" name="deal-profit" type="number" title="Profit ($)" placeholder="Profit ($)"
                value="{{ profit }}" {{ blockAmountProfit ? 'disabled' : '' }}>
+      </div>
+    </div>
+    <div class="form-row">
+      <div class="form-group col mb-2">
+        {# <label for="deal-upsale">Upsale ($)</label>#}
+        <input class="form-control" id="deal-upsale" name="deal-upsale" type="number" title="Upsale ($)" placeholder="Upsale ($)"
+               value="{{ upsale }}" min="0" max="999999" step="1" {{ blockAmountProfit ? 'disabled' : '' }}>
+      </div>
+      <div class="form-group col mb-2 ml-2">
+        {# <label for="deal-asap-charge">ASAP charge ($)</label>#}
+        <input class="form-control" id="deal-asap-charge" name="deal-asap-charge" type="number" title="ASAP charge ($)" placeholder="ASAP charge ($)"
+               value="{{ asapCharge }}" min="0" max="999999" step="1" {{ blockAmountProfit ? 'disabled' : '' }}>
       </div>
     </div>
     <div class="form-row">
@@ -242,6 +262,8 @@
     let canChangeProfitStatuses = {{ canChangeProfitStatuses|json_encode|replace("'", "&#39;")|raw }};
     let $amountInput = jQuery('#deal-amount');
     let $profitInput = jQuery('#deal-profit');
+    let $upsaleInput = jQuery('#deal-upsale');
+    let $asapChargeInput = jQuery('#deal-asap-charge');
     let canChangeProfit = {{ canChangeProfit ? 'true' : 'false'}};
 
     let $statusDialog = jQuery(".status-dialog");
@@ -306,6 +328,36 @@
           $profitInput.attr('disabled', 'disabled')
         }
       }
+
+      toggleUpsaleAndAsapChargeFields();
     })
+
+    processInitUpsaleAndAsapChargeFields();
+
+    function processInitUpsaleAndAsapChargeFields() {
+      if (!$upsaleInput.length && !$asapChargeInput.length) return;
+
+      toggleUpsaleAndAsapChargeFields();
+
+      $amountInput.on('input', toggleUpsaleAndAsapChargeFields);
+      $profitInput.on('input', toggleUpsaleAndAsapChargeFields);
+    }
+
+    function toggleUpsaleAndAsapChargeFields() {
+      let amount = Number($amountInput.val()) || 0;
+      let profit = Number($profitInput.val()) || 0;
+      let isAmountActive = !$amountInput.is(':disabled');
+      let isProfitActive = !$profitInput.is(':disabled');
+
+      let canEdit = amount > 0 && profit > 0 && isAmountActive && isProfitActive;
+
+      $upsaleInput.prop('disabled', !canEdit);
+      $asapChargeInput.prop('disabled', !canEdit);
+
+      if (!canEdit) {
+        $upsaleInput.val('');
+        $asapChargeInput.val('');
+      }
+    }
   });
 </script>

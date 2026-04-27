@@ -580,6 +580,18 @@ class DialogDeal
 
     /**
      * @var int
+     * @ORM\Column(type="integer", nullable=true)
+     */
+    protected $upsale;
+
+    /**
+     * @var int
+     * @ORM\Column(type="integer", nullable=true)
+     */
+    protected $asapCharge;
+
+    /**
+     * @var int
      * @ORM\Column(type="smallint", options={"unsigned"=true, "default"=0})
      */
     protected $dealRating = 0;
@@ -906,6 +918,28 @@ class DialogDeal
     public function getProfit(): ?int
     {
         return $this->profit;
+    }
+
+    public function setUpsale(?int $upsale): self
+    {
+        $this->upsale = $upsale;
+        return $this;
+    }
+
+    public function getUpsale(): ?int
+    {
+        return $this->upsale;
+    }
+
+    public function setAsapCharge(?int $asapCharge): self
+    {
+        $this->asapCharge = $asapCharge;
+        return $this;
+    }
+
+    public function getAsapCharge(): ?int
+    {
+        return $this->asapCharge;
     }
 
     public function setDealRating(?int $dealRating): DialogDeal
